@@ -27,4 +27,11 @@ if (!is_dir($storagePath)) {
 }
 $app->useStoragePath($storagePath);
 
-$app->handleRequest(Request::capture());
+try {
+    $app->handleRequest(Request::capture());
+} catch (\Throwable $e) {
+    echo "<h1>Fatal Error Before Boot</h1>";
+    echo "<p><strong>" . get_class($e) . "</strong>: " . $e->getMessage() . "</p>";
+    echo "<pre>" . $e->getTraceAsString() . "</pre>";
+    exit(1);
+}
