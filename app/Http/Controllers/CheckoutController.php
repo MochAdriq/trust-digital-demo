@@ -2,40 +2,75 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Requests\CheckoutRequest;
 use App\Models\Product;
-use App\Models\Customer;
-use App\Models\Order;
-use App\Models\OrderItem;
-use App\Services\OrderFulfillmentService;
-use App\Services\PointLedgerService;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
+use App\Models\SubscriptionPackage;
+use App\Services\CheckoutService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CheckoutController extends Controller
 {
-    public function store(
-        Request $request,
-        PointLedgerService $points,
-        OrderFulfillmentService $fulfillment,
-    )
+    public function show(string $slug)
+    {
+        $package = SubscriptionPackage::with('product')
+            ->where('is_active', true)
+            ->where('slug', $slug)
+            ->firstOrFail();
+
+        return Inertia::render('Checkout', [
+            'package' => $package,
+            'product' => $package->product,
+        ]);
+    }
+
+    public function verifyVoucher(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string',
+            'package_id' => 'required|exists:subscription_packages,id',
+        ]);
+
+        $package = SubscriptionPackage::findOrFail($validated['package_id']);
+        
+        $voucher = \App\Models\Voucher::where('code', strtoupper(trim($validated['code'])))
+            ->where('is_used', false)
+            ->first();
+
+        if (!$voucher) {
+            return response()->json(['valid' => false, 'message' => 'Voucher tidak ditemukan atau sudah digunakan.']);
+        }
+
+        if ($voucher->product_id !== $package->product_id) {
+            return response()->json(['valid' => false, 'message' => 'Voucher ini tidak berlaku untuk produk ini.']);
+        }
+
+        return response()->json([
+            'valid' => true,
+            'message' => 'Voucher berhasil diterapkan!',
+            'voucher' => [
+                'code' => $voucher->code
+            ]
+        ]);
+    }
+
+    public function store(Request $request, CheckoutService $checkout)
     {
         $validated = $request->validate([
             'email' => 'required|email|max:255',
-            'product_id' => 'required|exists:products,id',
+            'name' => 'required|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'package_id' => 'required|exists:subscription_packages,id',
             'quantity' => 'required|integer|min:1|max:10',
-            'payment_method' => 'required|in:gateway,points',
+            'payment_method' => 'required|in:gateway,points,voucher',
             'pin' => 'nullable|string|digits:6',
             'customer_input' => 'nullable|string|max:255',
+            'voucher_code' => 'nullable|string',
         ]);
 
-        $product = Product::where('is_active', true)->findOrFail($validated['product_id']);
-        $quantity = (int) $validated['quantity'];
-        $email = Str::lower(trim($validated['email']));
-        $paymentMethod = $validated['payment_method'];
-        $pointsPrice = $product->points_price ? $product->points_price * $quantity : null;
-        $totalPrice = $product->price * $quantity;
+        // Pre-check: product must require customer_input if it has a label.
+        $package = SubscriptionPackage::with('product')->where('is_active', true)->findOrFail($validated['package_id']);
+        $product = $package->product;
 
         if ($product->customer_input_label && blank($validated['customer_input'] ?? null)) {
             return back()->withErrors([
@@ -43,84 +78,8 @@ class CheckoutController extends Controller
             ]);
         }
 
-        $order = DB::transaction(function () use ($email, $product, $quantity, $paymentMethod, $pointsPrice, $totalPrice, $validated, $points, $fulfillment) {
-            $customer = Customer::firstOrCreate(
-                ['email' => $email],
-                ['points_balance' => 0, 'is_reseller' => false],
-            );
-
-            if (! $customer->pin_hash && filled($validated['pin'] ?? null)) {
-                $customer->update(['pin_hash' => Hash::make($validated['pin'])]);
-                $customer->refresh();
-            }
-
-            if ($paymentMethod === 'points') {
-                if (! $pointsPrice) {
-                    back()->withErrors(['payment_method' => 'Produk ini belum bisa dibeli dengan poin.'])->throwResponse();
-                }
-
-                if (! $customer->pin_hash || ! Hash::check((string) ($validated['pin'] ?? ''), $customer->pin_hash)) {
-                    back()->withErrors(['pin' => 'PIN poin tidak valid.'])->throwResponse();
-                }
-
-                if ($customer->points_balance < $pointsPrice) {
-                    back()->withErrors(['payment_method' => 'Saldo poin tidak cukup untuk membeli produk ini.'])->throwResponse();
-                }
-            }
-
-            $order = Order::create([
-                'order_number' => $this->generateOrderNumber(),
-                'customer_id' => $customer->id,
-                'status' => $paymentMethod === 'points' ? 'paid' : 'pending_payment',
-                'payment_status' => $paymentMethod === 'points' ? 'paid' : 'unpaid',
-                'fulfillment_status' => 'pending',
-                'total_price' => $totalPrice,
-                'amount_payable' => $paymentMethod === 'points' ? 0 : $totalPrice,
-                'points_used' => $paymentMethod === 'points' ? $pointsPrice : 0,
-                'payment_method' => $paymentMethod === 'points' ? 'points' : 'pending_gateway',
-                'magic_link_token' => Str::random(64),
-                'magic_link_expires_at' => now()->addDays(90),
-                'paid_at' => $paymentMethod === 'points' ? now() : null,
-                'customer_note' => $validated['customer_input'] ?? null,
-            ]);
-
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'product_name' => $product->name,
-                'product_type' => $product->product_type,
-                'quantity' => $quantity,
-                'price' => $product->price,
-                'points_price' => $product->points_price,
-                'customer_input' => $validated['customer_input'] ?? null,
-                'product_snapshot' => [
-                    'name' => $product->name,
-                    'slug' => $product->slug,
-                    'price' => $product->price,
-                    'points_price' => $product->points_price,
-                    'product_type' => $product->product_type,
-                ],
-            ]);
-
-            $customer->update(['last_order_at' => now()]);
-
-            if ($paymentMethod === 'points') {
-                $points->spendForOrder($order, $pointsPrice, 'Point purchase '.$order->order_number);
-                $fulfillment->fulfillPaidOrder($order);
-            }
-
-            return $order;
-        });
+        $order = $checkout->createOrder($validated);
 
         return redirect()->route('order.magic.show', $order->magic_link_token);
-    }
-
-    private function generateOrderNumber(): string
-    {
-        do {
-            $number = 'TRX-'.now()->format('ymd').'-'.Str::upper(Str::random(6));
-        } while (Order::where('order_number', $number)->exists());
-
-        return $number;
     }
 }

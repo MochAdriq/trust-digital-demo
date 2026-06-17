@@ -2,44 +2,45 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Category;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Category;
 
 class HomeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::with(['products' => function($q) {
-            $q->where('is_active', true)->limit(8);
-        }])->where('is_active', true)->get();
+        $query = Product::with(['category', 'subscriptionPackages' => function ($q) {
+            $q->where('is_active', true)->orderBy('sort_order');
+        }])->where('is_active', true);
+
+        if ($request->filled('category')) {
+            $query->whereHas('category', fn ($q) => $q->where('slug', $request->category));
+        }
+
+        if ($request->filled('q')) {
+            $query->where('name', 'like', '%'.$request->q.'%');
+        }
 
         return Inertia::render('Welcome', [
-            'categories' => $categories
+            'products' => $query->get(),
+            'categories' => Category::where('is_active', true)->get(),
+            'filters' => $request->only(['category', 'q']),
         ]);
     }
 
-    public function produk(Request $request)
+    public function show(string $slug)
     {
-        $query = \App\Models\Product::with('category')->where('is_active', true);
-        
-        if ($request->has('category')) {
-            $query->whereHas('category', function($q) use ($request) {
-                $q->where('slug', $request->category);
-            });
-        }
+        $product = Product::with(['category', 'subscriptionPackages' => function ($q) {
+            $q->where('is_active', true)->orderBy('sort_order');
+        }])
+            ->where('is_active', true)
+            ->where('slug', $slug)
+            ->firstOrFail();
 
-        if ($request->has('q')) {
-            $query->where('name', 'like', '%' . $request->q . '%');
-        }
-
-        $products = $query->get();
-        $categories = Category::where('is_active', true)->get();
-
-        return Inertia::render('Produk', [
-            'products' => $products,
-            'categories' => $categories,
-            'filters' => $request->only(['category', 'q'])
+        return Inertia::render('ProductDetail', [
+            'product' => $product,
         ]);
     }
 
@@ -56,13 +57,5 @@ class HomeController extends Controller
     public function faq()
     {
         return Inertia::render('FAQ');
-    }
-
-    public function show($slug)
-    {
-        $product = \App\Models\Product::with('category')->where('slug', $slug)->firstOrFail();
-        return Inertia::render('ProductDetail', [
-            'product' => $product
-        ]);
     }
 }

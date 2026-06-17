@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
+use App\Services\NotificationService;
 use App\Services\OrderFulfillmentService;
 use App\Services\PointLedgerService;
 use Illuminate\Http\Request;
@@ -15,6 +18,7 @@ class PaymentWebhookController extends Controller
         Request $request,
         PointLedgerService $points,
         OrderFulfillmentService $fulfillment,
+        NotificationService $notifications,
     ) {
         $serverKey = config('services.midtrans.server_key');
 
@@ -49,25 +53,27 @@ class PaymentWebhookController extends Controller
             ],
         );
 
-        if ($isPaid && $order->payment_status !== 'paid') {
+        if ($isPaid && $order->payment_status !== PaymentStatus::Paid) {
             $order->update([
-                'status' => 'paid',
-                'payment_status' => 'paid',
+                'status' => OrderStatus::Paid,
+                'payment_status' => PaymentStatus::Paid,
                 'payment_reference' => $request->transaction_id,
                 'paid_at' => now(),
             ]);
 
-            $points->earnForOrder($order->refresh());
-            $fulfillment->fulfillPaidOrder($order->refresh());
+            $order->refresh();
+            $points->earnForOrder($order);
+            $fulfillment->fulfillPaidOrder($order);
+            $notifications->createForPaidOrder($order);
         } elseif (in_array($transactionStatus, ['cancel', 'deny', 'expire', 'failure'], true)) {
             $order->update([
-                'status' => 'payment_failed',
+                'status' => OrderStatus::PaymentFailed,
                 'payment_status' => Arr::get([
-                    'cancel' => 'canceled',
-                    'deny' => 'failed',
-                    'expire' => 'expired',
-                    'failure' => 'failed',
-                ], $transactionStatus, 'failed'),
+                    'cancel' => PaymentStatus::Canceled,
+                    'deny' => PaymentStatus::Failed,
+                    'expire' => PaymentStatus::Expired,
+                    'failure' => PaymentStatus::Failed,
+                ], $transactionStatus, PaymentStatus::Failed),
             ]);
         }
 

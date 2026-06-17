@@ -20,6 +20,8 @@ class LoyaltySettingResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Loyalty & Promotions';
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema

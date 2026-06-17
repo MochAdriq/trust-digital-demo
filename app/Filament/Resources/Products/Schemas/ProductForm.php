@@ -7,6 +7,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\TagsInput;
 use Filament\Schemas\Schema;
 
 class ProductForm
@@ -26,6 +27,20 @@ class ProductForm
                     ->required(),
                 Textarea::make('description')
                     ->columnSpanFull(),
+                TagsInput::make('features')
+                    ->label('Keunggulan Berlangganan')
+                    ->placeholder('Misal: Akses penuh semua fitur, Garansi 100%')
+                    ->columnSpanFull(),
+                TextInput::make('rating')
+                    ->numeric()
+                    ->inputMode('decimal')
+                    ->step(0.1)
+                    ->minValue(0)
+                    ->maxValue(5)
+                    ->label('Rating (Bintang)'),
+                TextInput::make('total_users')
+                    ->numeric()
+                    ->label('Total Pengguna'),
                 Select::make('product_type')
                     ->options([
                         'credential_stock' => 'Credential Stock',
@@ -39,6 +54,13 @@ class ProductForm
                     ->required()
                     ->numeric()
                     ->prefix('Rp'),
+                TextInput::make('discount_percentage')
+                    ->label('Persentase Diskon (%)')
+                    ->numeric()
+                    ->minValue(0)
+                    ->maxValue(100)
+                    ->suffix('%')
+                    ->helperText('Otomatis menghitung dan menampilkan "harga coret" yang lebih tinggi di katalog produk.'),
                 TextInput::make('points_price')
                     ->label('Harga Poin')
                     ->numeric()

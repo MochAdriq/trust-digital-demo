@@ -22,12 +22,15 @@ class OrdersTable
                     ->sortable(),
                 TextColumn::make('status')
                     ->badge()
+                    ->formatStateUsing(fn ($state) => $state?->label() ?? $state)
                     ->searchable(),
                 TextColumn::make('payment_status')
                     ->badge()
+                    ->formatStateUsing(fn ($state) => ucfirst($state?->value ?? $state))
                     ->searchable(),
                 TextColumn::make('fulfillment_status')
                     ->badge()
+                    ->formatStateUsing(fn ($state) => ucfirst(str_replace('_', ' ', $state?->value ?? $state)))
                     ->searchable(),
                 TextColumn::make('total_price')
                     ->money('IDR')

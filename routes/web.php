@@ -4,20 +4,25 @@ use App\Http\Controllers\ProfileController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use App\Http\Controllers\CustomerNotificationController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PaymentWebhookController;
+use App\Http\Controllers\VoucherRedemptionController;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::get('/produk', [HomeController::class, 'produk'])->name('produk.index');
 Route::get('/product/{slug}', [HomeController::class, 'show'])->name('product.show');
 
 Route::get('/promo', [HomeController::class, 'promo'])->name('promo');
 Route::get('/reseller', [HomeController::class, 'reseller'])->name('reseller');
 Route::get('/faq', [HomeController::class, 'faq'])->name('faq');
 
-Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::get('/checkout/{package}', [CheckoutController::class, 'show'])->name('checkout.show');
+Route::post('/checkout/verify-voucher', [CheckoutController::class, 'verifyVoucher'])->name('checkout.verify-voucher');
+Route::post('/checkout', [CheckoutController::class, 'store'])
+    ->middleware('throttle:10,1')
+    ->name('checkout.store');
 
 Route::get('/track', [OrderController::class, 'track'])->name('order.track');
 Route::post('/track', [OrderController::class, 'status'])->name('order.status');
@@ -26,14 +31,26 @@ Route::get('/orders/{token}', [OrderController::class, 'showMagic'])->name('orde
 Route::post('/payments/midtrans/notification', [PaymentWebhookController::class, 'midtrans'])
     ->name('payments.midtrans.notification');
 
+Route::get('/notifications/{token}', [CustomerNotificationController::class, 'index'])
+    ->name('customer.notifications.index');
+Route::get('/notifications/{token}/{id}', [CustomerNotificationController::class, 'show'])
+    ->name('customer.notifications.show');
+Route::post('/notifications/{token}/{id}/read', [CustomerNotificationController::class, 'markAsRead'])
+    ->name('customer.notifications.read');
+
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
+
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    // Kasir: Penukaran Voucher Shopee
+    Route::get('/cashier/voucher', [VoucherRedemptionController::class, 'index'])->name('cashier.voucher.index');
+    Route::post('/cashier/voucher/redeem', [VoucherRedemptionController::class, 'redeem'])->name('cashier.voucher.redeem');
 });
 
 require __DIR__.'/auth.php';

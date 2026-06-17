@@ -43,10 +43,6 @@ class PointLedgerService
             return 0;
         }
 
-        if (PointLedgerEntry::where('order_id', $order->id)->where('type', 'earn')->exists()) {
-            return 0;
-        }
-
         $setting = LoyaltySetting::active();
 
         if (! $setting->is_active || $order->total_price < $setting->minimum_paid_amount) {
@@ -61,19 +57,26 @@ class PointLedgerService
 
         DB::transaction(function () use ($order, $earned): void {
             $customer = Customer::query()->lockForUpdate()->findOrFail($order->customer_id);
+
+            // Use firstOrCreate with unique index [order_id, type] to prevent double-earn
+            // even under concurrent webhook calls.
+            $entry = PointLedgerEntry::firstOrCreate(
+                ['order_id' => $order->id, 'type' => 'earn'],
+                [
+                    'customer_id' => $customer->id,
+                    'points_delta' => $earned,
+                    'balance_after' => $customer->points_balance + $earned,
+                    'description' => 'Earned from paid order '.$order->order_number,
+                ],
+            );
+
+            // If the entry already existed (created by a previous webhook call), skip increment.
+            if (! $entry->wasRecentlyCreated) {
+                return;
+            }
+
             $customer->increment('points_balance', $earned);
-            $customer->refresh();
-
             $order->update(['points_earned' => $earned]);
-
-            PointLedgerEntry::create([
-                'customer_id' => $customer->id,
-                'order_id' => $order->id,
-                'type' => 'earn',
-                'points_delta' => $earned,
-                'balance_after' => $customer->points_balance,
-                'description' => 'Earned from paid order '.$order->order_number,
-            ]);
         });
 
         return $earned;

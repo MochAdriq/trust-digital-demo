@@ -34,4 +34,9 @@ class CredentialStock extends Model
     {
         return $this->belongsTo(Order::class, 'delivered_order_id');
     }
+
+    public function voucher(): BelongsTo
+    {
+        return $this->belongsTo(Voucher::class);
+    }
 }

@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Orders\Schemas;
 
+use App\Enums\FulfillmentStatus;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -22,35 +25,17 @@ class OrderForm
                     ->preload()
                     ->required(),
                 Select::make('status')
-                    ->options([
-                        'pending_payment' => 'Pending Payment',
-                        'paid' => 'Paid',
-                        'paid_awaiting_stock' => 'Paid Awaiting Stock',
-                        'paid_manual_review' => 'Paid Manual Review',
-                        'completed' => 'Completed',
-                        'payment_failed' => 'Payment Failed',
-                    ])
+                    ->options(collect(OrderStatus::cases())->mapWithKeys(fn ($s) => [$s->value => $s->label()])->toArray())
                     ->required()
-                    ->default('pending'),
+                    ->default(OrderStatus::PendingPayment->value),
                 Select::make('payment_status')
-                    ->options([
-                        'unpaid' => 'Unpaid',
-                        'paid' => 'Paid',
-                        'failed' => 'Failed',
-                        'expired' => 'Expired',
-                        'canceled' => 'Canceled',
-                    ])
+                    ->options(collect(PaymentStatus::cases())->mapWithKeys(fn ($s) => [$s->value => ucfirst($s->value)])->toArray())
                     ->required()
-                    ->default('unpaid'),
+                    ->default(PaymentStatus::Unpaid->value),
                 Select::make('fulfillment_status')
-                    ->options([
-                        'pending' => 'Pending',
-                        'awaiting_stock' => 'Awaiting Stock',
-                        'manual_review' => 'Manual Review',
-                        'fulfilled' => 'Fulfilled',
-                    ])
+                    ->options(collect(FulfillmentStatus::cases())->mapWithKeys(fn ($s) => [$s->value => ucfirst(str_replace('_', ' ', $s->value))])->toArray())
                     ->required()
-                    ->default('pending'),
+                    ->default(FulfillmentStatus::Pending->value),
                 TextInput::make('total_price')
                     ->required()
                     ->numeric()

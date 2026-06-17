@@ -18,7 +18,9 @@ class ProductResource extends Resource
 {
     protected static ?string $model = Product::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCube;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Catalog';
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -35,7 +37,7 @@ class ProductResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            \App\Filament\Resources\Products\RelationManagers\SubscriptionPackagesRelationManager::class,
         ];
     }
 

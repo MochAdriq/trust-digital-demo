@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\FulfillmentStatus;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Category;
 use App\Models\CredentialStock;
 use App\Models\Customer;
@@ -29,8 +32,8 @@ class CheckoutFlowTest extends TestCase
         $order = $customer->orders()->firstOrFail();
 
         $response->assertRedirect(route('order.magic.show', $order->magic_link_token, absolute: false));
-        $this->assertSame('pending_payment', $order->status);
-        $this->assertSame('unpaid', $order->payment_status);
+        $this->assertSame(OrderStatus::PendingPayment, $order->status);
+        $this->assertSame(PaymentStatus::Unpaid, $order->payment_status);
         $this->assertSame('pending_gateway', $order->payment_method);
         $this->assertSame(35000, $order->total_price);
         $this->assertNotEmpty($order->magic_link_token);
@@ -65,9 +68,9 @@ class CheckoutFlowTest extends TestCase
         $order = $customer->orders()->firstOrFail();
 
         $response->assertRedirect(route('order.magic.show', $order->magic_link_token, absolute: false));
-        $this->assertSame('completed', $order->fresh()->status);
-        $this->assertSame('paid', $order->fresh()->payment_status);
-        $this->assertSame('fulfilled', $order->fresh()->fulfillment_status);
+        $this->assertSame(OrderStatus::Completed, $order->fresh()->status);
+        $this->assertSame(PaymentStatus::Paid, $order->fresh()->payment_status);
+        $this->assertSame(FulfillmentStatus::Fulfilled, $order->fresh()->fulfillment_status);
         $this->assertSame(15, $customer->fresh()->points_balance);
 
         $credential = CredentialStock::where('login_email', 'stock@example.com')->firstOrFail();

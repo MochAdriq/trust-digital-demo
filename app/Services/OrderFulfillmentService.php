@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\FulfillmentStatus;
+use App\Enums\OrderStatus;
+use App\Enums\PaymentStatus;
 use App\Models\CredentialStock;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +19,11 @@ class OrderFulfillmentService
                 ->lockForUpdate()
                 ->findOrFail($order->id);
 
-            if ($order->payment_status !== 'paid') {
+            if ($order->payment_status !== PaymentStatus::Paid) {
                 return $order;
             }
 
-            if (in_array($order->fulfillment_status, ['fulfilled', 'manual_review'], true)) {
+            if (in_array($order->fulfillment_status, [FulfillmentStatus::Fulfilled, FulfillmentStatus::ManualReview], true)) {
                 return $order;
             }
 
@@ -39,8 +42,8 @@ class OrderFulfillmentService
 
                 if ($available < $item->quantity) {
                     $order->update([
-                        'status' => 'paid_awaiting_stock',
-                        'fulfillment_status' => 'awaiting_stock',
+                        'status' => OrderStatus::PaidAwaitingStock,
+                        'fulfillment_status' => FulfillmentStatus::AwaitingStock,
                     ]);
 
                     return $order->refresh();
@@ -65,16 +68,16 @@ class OrderFulfillmentService
 
             if ($requiresManualReview) {
                 $order->update([
-                    'status' => 'paid_manual_review',
-                    'fulfillment_status' => 'manual_review',
+                    'status' => OrderStatus::PaidManualReview,
+                    'fulfillment_status' => FulfillmentStatus::ManualReview,
                 ]);
 
                 return $order->refresh();
             }
 
             $order->update([
-                'status' => 'completed',
-                'fulfillment_status' => 'fulfilled',
+                'status' => OrderStatus::Completed,
+                'fulfillment_status' => FulfillmentStatus::Fulfilled,
                 'fulfilled_at' => now(),
             ]);
 

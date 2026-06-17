@@ -13,6 +13,9 @@ class OrderItem extends Model
     {
         return [
             'product_snapshot' => 'array',
+            'price' => 'integer',
+            'points_price' => 'integer',
+            'quantity' => 'integer',
         ];
     }
 

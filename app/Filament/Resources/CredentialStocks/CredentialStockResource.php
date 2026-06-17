@@ -20,6 +20,8 @@ class CredentialStockResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedKey;
 
+    protected static string|\UnitEnum|null $navigationGroup = 'Catalog';
+
     protected static ?string $recordTitleAttribute = 'label';
 
     public static function form(Schema $schema): Schema

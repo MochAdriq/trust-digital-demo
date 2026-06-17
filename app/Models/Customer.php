@@ -30,4 +30,9 @@ class Customer extends Model
     {
         return $this->hasMany(PointLedgerEntry::class);
     }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(CustomerNotification::class);
+    }
 }
