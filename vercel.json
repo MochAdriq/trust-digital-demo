@@ -25,6 +25,7 @@
         "APP_DEBUG": "true",
         "APP_URL": "https://trust-digital-demo.vercel.app",
         "ASSET_URL": "https://trust-digital-demo.vercel.app",
+        "LOG_CHANNEL": "stderr",
         "DB_CONNECTION": "pgsql",
         "DB_HOST": "aws-1-ap-southeast-2.pooler.supabase.com",
         "DB_PORT": "6543",
